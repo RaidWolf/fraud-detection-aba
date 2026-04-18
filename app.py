@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -125,12 +124,106 @@ except Exception as e:
 
 FEATURES = [f"V{i}" for i in range(1, 29)] + ["Time_scaled", "Amount_scaled"]
 
+# A real fraud example taken from the dataset (Class = 1)
+FRAUD_EXAMPLE = {
+    "Time": 406.0,
+    "Amount": 0.0,
+    "V1": -2.312226542,
+    "V2": 1.951992011,
+    "V3": -1.609850732,
+    "V4": 3.997905588,
+    "V5": -0.522187865,
+    "V6": -1.426545319,
+    "V7": -2.537387306,
+    "V8": 1.391657248,
+    "V9": -2.770089277,
+    "V10": -2.772272145,
+    "V11": 3.202033207,
+    "V12": -2.899907388,
+    "V13": -0.595221881,
+    "V14": -4.289253782,
+    "V15": 0.38972412,
+    "V16": -1.14074718,
+    "V17": -2.830055675,
+    "V18": -0.016822468,
+    "V19": 0.416955705,
+    "V20": 0.126910559,
+    "V21": 0.517232371,
+    "V22": -0.035049369,
+    "V23": -0.465211076,
+    "V24": 0.320198199,
+    "V25": 0.044519167,
+    "V26": 0.177839798,
+    "V27": 0.261145003,
+    "V28": -0.143275875,
+}
+
+# A real normal transaction from the dataset (Class = 0)
+LOW_RISK_EXAMPLE = {
+    "Time": 0.0,
+    "Amount": 149.62,
+    "V1": -1.359807134,
+    "V2": -0.072781173,
+    "V3": 2.536346738,
+    "V4": 1.378155224,
+    "V5": -0.33832077,
+    "V6": 0.462387778,
+    "V7": 0.239598554,
+    "V8": 0.098697901,
+    "V9": 0.36378697,
+    "V10": 0.090794172,
+    "V11": -0.551599533,
+    "V12": -0.617800856,
+    "V13": -0.991389847,
+    "V14": -0.311169354,
+    "V15": 1.468176972,
+    "V16": -0.470400525,
+    "V17": 0.207971242,
+    "V18": 0.02579058,
+    "V19": 0.40399296,
+    "V20": 0.251412098,
+    "V21": -0.018306778,
+    "V22": 0.277837576,
+    "V23": -0.11047391,
+    "V24": 0.066928075,
+    "V25": 0.128539358,
+    "V26": -0.189114844,
+    "V27": 0.133558377,
+    "V28": -0.021053053,
+}
+
+def init_session_state():
+    defaults = {"time_val": 0.0, "amount_val": 0.0}
+    defaults.update({f"V{i}": 0.0 for i in range(1, 29)})
+    for k, v in defaults.items():
+        if k not in st.session_state:
+            st.session_state[k] = v
+
+
+def load_fraud_example():
+    st.session_state["time_val"] = FRAUD_EXAMPLE["Time"]
+    st.session_state["amount_val"] = FRAUD_EXAMPLE["Amount"]
+    for i in range(1, 29):
+        st.session_state[f"V{i}"] = FRAUD_EXAMPLE[f"V{i}"]
+
+
+def load_low_risk_example():
+    st.session_state["time_val"] = LOW_RISK_EXAMPLE["Time"]
+    st.session_state["amount_val"] = LOW_RISK_EXAMPLE["Amount"]
+    for i in range(1, 29):
+        st.session_state[f"V{i}"] = LOW_RISK_EXAMPLE[f"V{i}"]
+
+
+init_session_state()
+
+
 def risk_label(prob: float):
     if prob < 0.30:
         return "Low Risk", "low"
     elif prob < 0.70:
         return "Medium Risk", "medium"
     return "High Risk", "high"
+
 
 def build_input(v_dict, time_val, amount_val):
     scaled = scaler.transform(pd.DataFrame([[time_val, amount_val]], columns=["Time", "Amount"]))
@@ -139,6 +232,7 @@ def build_input(v_dict, time_val, amount_val):
 
     row = [v_dict[f"V{i}"] for i in range(1, 29)] + [time_scaled, amount_scaled]
     return pd.DataFrame([row], columns=FEATURES)
+
 
 # =============================
 # Header
@@ -179,6 +273,14 @@ with st.sidebar:
     threshold = st.slider("Flagging threshold", 0.10, 0.90, 0.30, 0.05)
     st.caption("Lower threshold = more fraud caught, but more false alarms.")
     st.markdown("---")
+    st.subheader("Quick Fill")
+    b1, b2 = st.columns(2)
+    with b1:
+        st.button("Load Fraud Example", use_container_width=True, on_click=load_fraud_example)
+    with b2:
+        st.button("Load Low Risk Example", use_container_width=True, on_click=load_low_risk_example)
+    st.caption("Fraud example = a real suspicious row. Low risk example = a real genuine row from the dataset.")
+    st.markdown("---")
     st.subheader("Project Notes")
     st.write(
         "This app uses the Kaggle credit card fraud dataset. "
@@ -188,30 +290,31 @@ with st.sidebar:
 # =============================
 # Main layout
 # =============================
-tab1, tab2, tab3 = st.tabs(["Transaction Scanner", "Project Summary", "Run / Deploy"])
+tab1, tab2 = st.tabs(["Transaction Scanner", "Project Summary"])
 
 with tab1:
     left, right = st.columns([1.3, 1])
 
     with left:
         st.markdown('<div class="section-label">Enter Transaction Details</div>', unsafe_allow_html=True)
+        st.caption("Use the sidebar button to auto-fill a real fraud example and test the model.")
 
         with st.form("fraud_form"):
             c1, c2 = st.columns(2)
 
             with c1:
-                time_val = st.number_input("Time", value=0.0)
-                amount_val = st.number_input("Amount", value=0.0)
+                time_val = st.number_input("Time", key="time_val")
+                amount_val = st.number_input("Amount", key="amount_val")
 
                 st.markdown("**V1 to V14**")
                 v_dict = {}
                 for i in range(1, 15):
-                    v_dict[f"V{i}"] = st.number_input(f"V{i}", value=0.0, format="%.6f")
+                    v_dict[f"V{i}"] = st.number_input(f"V{i}", key=f"V{i}", format="%.6f")
 
             with c2:
                 st.markdown("**V15 to V28**")
                 for i in range(15, 29):
-                    v_dict[f"V{i}"] = st.number_input(f"V{i}", value=0.0, format="%.6f")
+                    v_dict[f"V{i}"] = st.number_input(f"V{i}", key=f"V{i}", format="%.6f")
 
             submitted = st.form_submit_button("Predict Fraud Risk")
 
@@ -278,25 +381,3 @@ with tab2:
         "2. Can machine learning detect fraud better than fixed rules?\n"
         "3. What threshold gives a practical balance between precision and recall?"
     )
-
-with tab3:
-    st.subheader("How to Run Locally")
-    st.code("streamlit run app.py", language="bash")
-
-    st.subheader("Files Required")
-    st.code(
-        "app.py\nfraud_model.pkl\nscaler.pkl\nrequirements.txt",
-        language="text"
-    )
-
-    st.subheader("requirements.txt")
-    st.code(
-        "streamlit\npandas\nnumpy\nscikit-learn\njoblib",
-        language="text"
-    )
-
-    st.subheader("Deployment Flow")
-    st.write("1. Push files to GitHub")
-    st.write("2. Connect GitHub repo to Streamlit Community Cloud")
-    st.write("3. Select `app.py` as the main file")
-    st.write("4. Deploy")
